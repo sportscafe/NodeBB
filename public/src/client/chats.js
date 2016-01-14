@@ -19,6 +19,7 @@ define('forum/chats', ['components', 'string', 'sounds', 'forum/infinitescroll',
 
 		Chats.addEventListeners();
 		Chats.createTagsInput($('[component="chat/messages"] .users-tag-input'), ajaxify.data);
+		Chats.createAutoComplete($('[component="chat/input"]'));
 
 		if (env === 'md' || env === 'lg') {
 			Chats.resizeMainWindow();
@@ -35,6 +36,11 @@ define('forum/chats', ['components', 'string', 'sounds', 'forum/infinitescroll',
 	};
 
 	Chats.addEventListeners = function() {
+		$('[component="chat/recent"]').on('click', '[component="chat/leave"]', function() {
+			Chats.leave($(this).parents('[data-roomid]'));
+			return false;
+		});
+
 		$('[component="chat/recent"]').on('click', '[component="chat/recent/room"]', function() {
 			Chats.switchChat($(this).attr('data-roomid'));
 		});
@@ -207,6 +213,26 @@ define('forum/chats', ['components', 'string', 'sounds', 'forum/infinitescroll',
 		});
 	};
 
+	Chats.createAutoComplete = function(element) {
+		var data = {
+			element: element,
+			strategies: [],
+			options: {
+				zIndex: 20000,
+				listPosition: function(position) {
+					this.$el.css(this._applyPlacement(position));
+					this.$el.css('position', 'absolute');
+					return this;
+				}
+			}
+		};
+
+		$(window).trigger('chat:autocomplete:init', data);
+		if (data.strategies.length) {
+			data.element.textcomplete(data.strategies, data.options);
+		}
+	};
+
 	Chats.createTagsInput = function(tagEl, data) {
 		tagEl.tagsinput({
 			confirmKeys: [13, 44],
@@ -265,6 +291,20 @@ define('forum/chats', ['components', 'string', 'sounds', 'forum/infinitescroll',
 
 		require(['autocomplete'], function(autocomplete) {
 			autocomplete.user(input);
+		});
+	};
+
+	Chats.leave = function(el) {
+		var roomId = el.attr('data-roomid');
+		socket.emit('modules.chats.leave', roomId, function(err) {
+			if (err) {
+				return app.alertError(err.message);
+			}
+			if (parseInt(roomId, 10) === ajaxify.data.roomId) {
+				ajaxify.go('chats');
+			} else {
+				el.remove();
+			}
 		});
 	};
 

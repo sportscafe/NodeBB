@@ -47,7 +47,7 @@ SocketGroups.join = function(socket, data, callback) {
 				return callback(new Error('[[error:join-requests-disabled]]'));
 			}
 
-			if (!results.groupData.isPrivate || results.isAdmin) {
+			if (!results.groupData.private || results.isAdmin) {
 				groups.join(data.groupName, socket.uid, callback);
 			} else {
 				groups.requestMembership(data.groupName, socket.uid, callback);
@@ -245,11 +245,11 @@ SocketGroups.cover.update = function(socket, data, callback) {
 	}
 
 	groups.ownership.isOwner(socket.uid, data.groupName, function(err, isOwner) {
-		if (!isOwner) {
-			return callback(new Error('[[error:no-privileges]]'));
+		if (err || !isOwner) {
+			return callback(err || new Error('[[error:no-privileges]]'));
 		}
 
-		groups.updateCover(data, callback);
+		groups.updateCover(socket.uid, data, callback);
 	});
 };
 
@@ -259,8 +259,8 @@ SocketGroups.cover.remove = function(socket, data, callback) {
 	}
 
 	groups.ownership.isOwner(socket.uid, data.groupName, function(err, isOwner) {
-		if (!isOwner) {
-			return callback(new Error('[[error:no-privileges]]'));
+		if (err || !isOwner) {
+			return callback(err || new Error('[[error:no-privileges]]'));
 		}
 
 		groups.removeCover(data, callback);

@@ -42,25 +42,25 @@ Controllers.home = function(req, res, next) {
 		var hook = 'action:homepage.get:' + route;
 
 		if (plugins.hasListeners(hook)) {
-			plugins.fireHook(hook, {req: req, res: res, next: next});
-		} else {
-			if (route === 'categories' || route === '/') {
-				Controllers.categories.list(req, res, next);
-			} else if (route === 'recent') {
-				Controllers.recent.get(req, res, next);
-			} else if (route === 'popular') {
-				Controllers.popular.get(req, res, next);
-			} else {
-				var match = /^category\/(\d+)\/(.*)$/.exec(route);
+			return plugins.fireHook(hook, {req: req, res: res, next: next});
+		}
 
-				if (match) {
-					req.params.topic_index = "1";
-					req.params.category_id = match[1];
-					req.params.slug = match[2];
-					Controllers.categories.get(req, res, next);
-				} else {
-					res.redirect(route);
-				}
+		if (route === 'categories' || route === '/') {
+			Controllers.categories.list(req, res, next);
+		} else if (route === 'recent') {
+			Controllers.recent.get(req, res, next);
+		} else if (route === 'popular') {
+			Controllers.popular.get(req, res, next);
+		} else {
+			var match = /^category\/(\d+)\/(.*)$/.exec(route);
+
+			if (match) {
+				req.params.topic_index = "1";
+				req.params.category_id = match[1];
+				req.params.slug = match[2];
+				Controllers.category.get(req, res, next);
+			} else {
+				res.redirect(route);
 			}
 		}
 	});
@@ -156,14 +156,25 @@ Controllers.register = function(req, res, next) {
 };
 
 Controllers.compose = function(req, res, next) {
-	if (req.query.p && !res.locals.isAPI) {
-		if (req.query.p.startsWith(nconf.get('relative_path'))) {
-			req.query.p = req.query.p.replace(nconf.get('relative_path'), '');
+	plugins.fireHook('filter:composer.build', {
+		req: req,
+		res: res,
+		next: next,
+		templateData: {}
+	}, function(err, data) {
+		if (err) {
+			return next(err);
 		}
-		return helpers.redirect(res, req.query.p);
-	}
 
-	res.render('', {});
+		if (data.templateData.disabled) {
+			res.render('', {
+				title: '[[modules:composer.compose]]'
+			});
+		} else {
+			data.templateData.title = '[[modules:composer.compose]]';
+			res.render('compose', data.templateData);
+		}
+	});
 };
 
 Controllers.confirmEmail = function(req, res, next) {
