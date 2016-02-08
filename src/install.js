@@ -330,6 +330,32 @@ function createAdmin(callback) {
 	}
 }
 
+function createGlobalModeratorsGroup(next) {
+	var groups = require('./groups');
+	async.waterfall([
+		function (next) {
+			groups.exists('Global Moderators', next);
+		},
+		function (exists, next) {
+			if (exists) {
+				winston.info('Global Moderators group found, skipping creation!');
+				return next();
+			}
+			groups.create({
+				name: 'Global Moderators',
+				userTitle: 'Global Moderator',
+				description: 'Forum wide moderators',
+				hidden: 0,
+				private: 1,
+				disableJoinRequests: 1
+			}, next);
+		},
+		function (groupData, next) {
+			groups.show('Global Moderators', next);
+		}
+	], next);
+}
+
 function createCategories(next) {
 	var Categories = require('./categories');
 
@@ -476,6 +502,7 @@ install.setup = function (callback) {
 		enableDefaultTheme,
 		createCategories,
 		createAdministrator,
+		createGlobalModeratorsGroup,
 		createMenuItems,
 		createWelcomePost,
 		enableDefaultPlugins,

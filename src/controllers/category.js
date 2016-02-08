@@ -95,7 +95,8 @@ categoryController.get = function(req, res, callback) {
 				reverse: reverse,
 				start: start,
 				stop: stop,
-				uid: req.uid
+				uid: req.uid,
+				settings: settings
 			});
 		},
 		function (payload, next) {
@@ -111,6 +112,9 @@ categoryController.get = function(req, res, callback) {
 			categories.getCategoryById(payload, next);
 		},
 		function (categoryData, next) {
+
+			categories.modifyTopicsByPrivilege(categoryData.topics, userPrivileges);
+
 			if (categoryData.link) {
 				db.incrObjectField('category:' + categoryData.cid, 'timesClicked');
 				return res.redirect(categoryData.link);

@@ -6,6 +6,7 @@ var fs = require('fs'),
 	async = require('async'),
 	winston = require('winston'),
 	nconf = require('nconf'),
+	_ = require('underscore'),
 	file = require('../file'),
 	utils = require('../../public/src/utils');
 
@@ -151,6 +152,16 @@ module.exports = function(Plugins) {
 			}));
 		}
 
+		if (Array.isArray(pluginData.acpScripts)) {
+			if (global.env === 'development') {
+				winston.verbose('[plugins] Found ' + pluginData.acpScripts.length + ' js file(s) for plugin ' + pluginData.id);
+			}
+
+			Plugins.acpScripts = Plugins.acpScripts.concat(pluginData.acpScripts.map(function(file) {
+				return path.join(__dirname, '../../node_modules/', pluginData.id, file);
+			}));
+		}
+
 		callback();
 	}
 
@@ -184,7 +195,7 @@ module.exports = function(Plugins) {
 						route: pathToLang.replace(pathToFolder, '')
 					});
 
-					if (pluginData.defaultLang) {
+					if (pluginData.defaultLang && pathToLang.endsWith(pluginData.defaultLang + '/' + path.basename(pathToLang))) {
 						fallbackMap[path.basename(pathToLang, '.json')] = path.join(pathToFolder, pluginData.defaultLang, path.basename(pathToLang));
 					}
 
@@ -196,7 +207,7 @@ module.exports = function(Plugins) {
 				}
 
 				Plugins.customLanguages = Plugins.customLanguages.concat(arr);
-				Plugins.customLanguageFallbacks = fallbackMap;
+				_.extendOwn(Plugins.customLanguageFallbacks, fallbackMap);
 
 				callback();
 			});

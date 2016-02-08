@@ -112,11 +112,14 @@ SocketCategories.loadMore = function(socket, data, callback) {
 			start: start,
 			stop: stop,
 			uid: socket.uid,
-			targetUid: results.targetUid
+			targetUid: results.targetUid,
+			settings: results.settings
 		}, function(err, data) {
 			if (err) {
 				return callback(err);
 			}
+
+			categories.modifyTopicsByPrivilege(data.topics, results.privileges);
 
 			data.privileges = results.privileges;
 			data.template = {

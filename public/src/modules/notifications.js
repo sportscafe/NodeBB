@@ -65,13 +65,32 @@ define('notifications', ['sounds', 'translator', 'components'], function(sound, 
 		}
 
 		socket.on('event:new_notification', function(notifData) {
-			app.alert({
+			// If a path is defined, show notif data, otherwise show generic data
+			var payload = {
 				alert_id: 'new_notif',
 				title: '[[notifications:new_notification]]',
-				message: '[[notifications:you_have_unread_notifications]]',
-				type: 'warning',
 				timeout: 2000
-			});
+			};
+
+			if (notifData.path) {
+				payload.message = notifData.bodyShort;
+				payload.type = 'info';
+				payload.clickfn = function() {
+					socket.emit('notifications.generatePath', notifData.nid, function(err, path) {
+						if (err) {
+							return app.alertError(err.message);
+						}
+						if (path) {
+							ajaxify.go(path);
+						}
+					});
+				};
+			} else {
+				payload.message = '[[notifications:you_have_unread_notifications]]';
+				payload.type = 'warning';
+			}
+
+			app.alert(payload);
 			app.refreshTitle();
 
 			if (ajaxify.currentPage === 'notifications') {
@@ -122,7 +141,15 @@ define('notifications', ['sounds', 'translator', 'components'], function(sound, 
 		notifIcon.toggleClass('unread-count', count > 0);
 		notifIcon.attr('data-content', count > 20 ? '20+' : count);
 
-		Tinycon.setBubble(count);
+		var payload = {
+			count: count,
+			updateFavicon: true
+		};
+		$(window).trigger('action:notification.updateCount', payload);
+
+		if (payload.updateFavicon) {
+			Tinycon.setBubble(count);
+		}
 	};
 
 	Notifications.markAllRead = function() {

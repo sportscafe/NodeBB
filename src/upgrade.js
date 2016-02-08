@@ -10,7 +10,7 @@ var db = require('./database'),
 	schemaDate, thisSchemaDate,
 
 	// IMPORTANT: REMEMBER TO UPDATE VALUE OF latestSchema
-	latestSchema = Date.UTC(2016, 0, 11);
+	latestSchema = Date.UTC(2016, 0, 23);
 
 Upgrade.check = function(callback) {
 	db.get('schemaDate', function(err, value) {
@@ -296,9 +296,118 @@ Upgrade.upgrade = function(callback) {
 
 					winston.info('[2015/12/23] Adding theme to active plugins sorted set done!');
 					Upgrade.update(thisSchemaDate, next);
-				})
+				});
 			} else {
 				winston.info('[2015/12/23] Adding theme to active plugins sorted set skipped!');
+				next();
+			}
+		},
+		function(next) {
+			thisSchemaDate = Date.UTC(2016, 0, 14);
+
+			if (schemaDate < thisSchemaDate) {
+				updatesMade = true;
+				winston.info('[2016/01/14] Creating user best post sorted sets');
+
+				var batch = require('./batch');
+
+				batch.processSortedSet('posts:pid', function(ids, next) {
+					async.eachSeries(ids, function(id, next) {
+						db.getObjectFields('post:' + id, ['pid', 'uid', 'votes'], function(err, postData) {
+							if (err) {
+								return next(err);
+							}
+							if (!postData || !parseInt(postData.votes, 10) || !parseInt(postData.uid, 10)) {
+								return next();
+							}
+							winston.info('processing pid: ' + postData.pid + ' uid: ' + postData.uid + ' votes: ' + postData.votes);
+							db.sortedSetAdd('uid:' + postData.uid + ':posts:votes', postData.votes, postData.pid, next);
+						});
+					}, next);
+				}, {}, function(err) {
+					if (err) {
+						return next(err);
+					}
+					winston.info('[2016/01/14] Creating user best post sorted sets done!');
+					Upgrade.update(thisSchemaDate, next);
+				});
+			} else {
+				winston.info('[2016/01/14] Creating user best post sorted sets skipped!');
+				next();
+			}
+		},
+		function(next) {
+			thisSchemaDate = Date.UTC(2016, 0, 20);
+
+			if (schemaDate < thisSchemaDate) {
+				updatesMade = true;
+				winston.info('[2016/01/20] Creating users:notvalidated');
+
+				var batch = require('./batch');
+				var now = Date.now();
+				batch.processSortedSet('users:joindate', function(ids, next) {
+					async.eachSeries(ids, function(id, next) {
+						db.getObjectFields('user:' + id, ['uid', 'email:confirmed'], function(err, userData) {
+							if (err) {
+								return next(err);
+							}
+							if (!userData || !parseInt(userData.uid, 10) || parseInt(userData['email:confirmed'], 10) === 1) {
+								return next();
+							}
+							winston.info('processing uid: ' + userData.uid + ' email:confirmed: ' + userData['email:confirmed']);
+							db.sortedSetAdd('users:notvalidated', now, userData.uid, next);
+						});
+					}, next);
+				}, {}, function(err) {
+					if (err) {
+						return next(err);
+					}
+					winston.info('[2016/01/20] Creating users:notvalidated done!');
+					Upgrade.update(thisSchemaDate, next);
+				});
+			} else {
+				winston.info('[2016/01/20] Creating users:notvalidated skipped!');
+				next();
+			}
+		},
+		function(next) {
+			thisSchemaDate = Date.UTC(2016, 0, 23);
+
+			if (schemaDate < thisSchemaDate) {
+				updatesMade = true;
+				winston.info('[2016/01/23] Creating Global moderators group');
+
+				var groups = require('./groups');
+				async.waterfall([
+					function (next) {
+						groups.exists('Global Moderators', next);
+					},
+					function (exists, next) {
+						if (exists) {
+							return next();
+						}
+						groups.create({
+							name: 'Global Moderators',
+							userTitle: 'Global Moderator',
+							description: 'Forum wide moderators',
+							hidden: 0,
+							private: 1,
+							disableJoinRequests: 1
+						}, next);
+					},
+					function (groupData, next) {
+						groups.show('Global Moderators', next);
+					}
+				], function(err) {
+					if (err) {
+						return next(err);
+					}
+
+					winston.info('[2016/01/23] Creating Global moderators group done!');
+					Upgrade.update(thisSchemaDate, next);
+				});
+			} else {
+				winston.info('[2016/01/23] Creating Global moderators group skipped!');
 				next();
 			}
 		}

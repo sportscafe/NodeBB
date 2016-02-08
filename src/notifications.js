@@ -90,7 +90,7 @@ var async = require('async'),
 
 			if (oldNotification) {
 				if (parseInt(oldNotification.pid, 10) === parseInt(data.pid, 10) && parseInt(oldNotification.importance, 10) > parseInt(data.importance, 10)) {
-					return callback();
+					return callback(null, null);
 				}
 			}
 
@@ -120,8 +120,8 @@ var async = require('async'),
 			uids = [uids];
 		}
 
-		uids = uids.filter(function(uid) {
-			return parseInt(uid, 10);
+		uids = uids.filter(function(uid, index, array) {
+			return parseInt(uid, 10) && array.indexOf(uid) === index;
 		});
 
 		if (!uids.length) {
@@ -195,9 +195,9 @@ var async = require('async'),
 
 			var websockets = require('./socket.io');
 			if (websockets.server) {
-				for(var i=0; i<uids.length; ++i) {
-					websockets.in('uid_' + uids[i]).emit('event:new_notification', notification);
-				}
+				uids.forEach(function(uid) {
+					websockets.in('uid_' + uid).emit('event:new_notification', notification);
+				});
 			}
 
 			callback();
@@ -364,7 +364,7 @@ var async = require('async'),
 
 				return cur;
 			}, []);
-			
+
 			differentiators.forEach(function(differentiator) {
 				set = isolated.filter(function(notifObj) {
 					return notifObj.mergeId === (mergeId + '|' + differentiator);
@@ -383,16 +383,13 @@ var async = require('async'),
 						var usernames = set.map(function(notifObj) {
 							return notifObj.user.username;
 						}).filter(function(username, idx, array) {
-							return array.indexOf(username) === idx
+							return array.indexOf(username) === idx;
 						});
 						var numUsers = usernames.length;
 
-						// Update bodyShort
-						if (numUsers === 1) {
-							// No need to change anything, actually...
-						} else if (numUsers === 2) {
+						if (numUsers === 2) {
 							notifications[modifyIndex].bodyShort = '[[' + mergeId + '_dual, ' + usernames.join(', ') + ', ' + notifications[modifyIndex].topicTitle + ']]'
-						} else {
+						} else if (numUsers > 2) {
 							notifications[modifyIndex].bodyShort = '[[' + mergeId + '_multiple, ' + usernames[0] + ', ' + (numUsers-1) + ', ' + notifications[modifyIndex].topicTitle + ']]'
 						}
 						break;

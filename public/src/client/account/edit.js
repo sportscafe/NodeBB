@@ -170,6 +170,7 @@ define('forum/account/edit', ['forum/account/header', 'uploader', 'translator'],
 							if (err) {
 								app.alertError(err.message);
 							}
+							app.logout();
 						});
 					}
 				});
@@ -186,9 +187,10 @@ define('forum/account/edit', ['forum/account/header', 'uploader', 'translator'],
 		function onUploadComplete(urlOnServer) {
 			urlOnServer = urlOnServer + '?' + new Date().getTime();
 
-			$('#user-current-picture').attr('src', urlOnServer);
+			$('#user-current-picture, img.avatar').attr('src', urlOnServer);
 			updateHeader(urlOnServer);
 			uploadedPicture = urlOnServer;
+			ajaxify.refresh();
 		}
 
 		function onRemoveComplete(urlOnServer) {

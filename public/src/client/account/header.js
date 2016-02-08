@@ -1,5 +1,5 @@
 'use strict';
-/* globals define, app, ajaxify, socket, RELATIVE_PATH */
+/* globals define, app, config, ajaxify, socket, bootbox, translator */
 
 define('forum/account/header', [
 	'coverPhoto',
@@ -30,7 +30,16 @@ define('forum/account/header', [
 		});
 
 		components.get('account/chat').on('click', function() {
-			app.newChat(theirid);
+			socket.emit('modules.chats.hasPrivateChat', theirid, function(err, roomId) {
+				if (err) {
+					return app.alertError(err.message);
+				}
+				if (roomId) {
+					app.openChat(roomId);
+				} else {
+					app.newChat(theirid);
+				}
+			});
 		});
 
 		components.get('account/ban').on('click', banAccount);
@@ -65,7 +74,7 @@ define('forum/account/header', [
 				}, callback);
 			},
 			function() {
-				uploader.open(RELATIVE_PATH + '/api/user/' + ajaxify.data.userslug + '/uploadcover', { uid: yourid }, 0, function(imageUrlOnServer) {
+				uploader.open(config.relative_path + '/api/user/' + ajaxify.data.userslug + '/uploadcover', { uid: yourid }, 0, function(imageUrlOnServer) {
 					components.get('account/cover').css('background-image', 'url(' + imageUrlOnServer + '?v=' + Date.now() + ')');
 				});
 			},
@@ -81,9 +90,9 @@ define('forum/account/header', [
 				return app.alertError(err.message);
 			}
 
-			$('#follow-btn').toggleClass('hide', type === 'follow');
-			$('#unfollow-btn').toggleClass('hide', type === 'unfollow');
-			app.alertSuccess('[[global:alert.' + type + ', ' + $('.account-username').html() + ']]');
+			components.get('account/follow').toggleClass('hide', type === 'follow');
+			components.get('account/unfollow').toggleClass('hide', type === 'unfollow');
+			app.alertSuccess('[[global:alert.' + type + ', ' + ajaxify.data.username + ']]');
 		});
 		return false;
 	}
@@ -94,24 +103,25 @@ define('forum/account/header', [
 				if (!confirm) {
 					return;
 				}
-				socket.emit('admin.user.banUsers', [ajaxify.data.theirid], function(err) {
+				socket.emit('user.banUsers', [ajaxify.data.theirid], function(err) {
 					if (err) {
 						return app.alertError(err.message);
 					}
-					$('#banAccountBtn').toggleClass('hide', true);
-					$('#banLabel, #unbanAccountBtn').toggleClass('hide', false);
+					components.get('account/ban').parent().addClass('hide');
+					components.get('account/unban').parent().removeClass('hide');
 				});
 			});
 		});
 	}
 
 	function unbanAccount() {
-		socket.emit('admin.user.unbanUsers', [ajaxify.data.theirid], function(err) {
+		socket.emit('user.unbanUsers', [ajaxify.data.theirid], function(err) {
 			if (err) {
 				return app.alertError(err.message);
 			}
-			$('#banAccountBtn').toggleClass('hide', false);
-			$('#banLabel, #unbanAccountBtn').toggleClass('hide', true);
+
+			components.get('account/ban').parent().removeClass('hide');
+			components.get('account/unban').parent().addClass('hide');
 		});
 	}
 

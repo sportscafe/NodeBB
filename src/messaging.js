@@ -357,7 +357,7 @@ var async = require('async'),
 
 	Messaging.canMessageRoom = function(uid, roomId, callback) {
 		if (parseInt(meta.config.disableChat) === 1 || !uid) {
-			return callback(null, false, '[[error:chat-disabled]]');
+			return callback(new Error('[[error:chat-disabled]]'));
 		}
 
 		async.waterfall([
@@ -366,20 +366,59 @@ var async = require('async'),
 			},
 			function (inRoom, next) {
 				if (!inRoom) {
-					return callback(null, false, '[[error:not-in-room]]');
+					return next(new Error('[[error:not-in-room]]'));
 				}
 				user.getUserFields(uid, ['banned', 'email:confirmed'], next);
 			},
 			function (userData, next) {
 				if (parseInt(userData.banned, 10) === 1) {
-					return callback(null, false, '[[error:user-banned]]');
+					return next(new Error('[[error:user-banned]]'));
 				}
 
 				if (parseInt(meta.config.requireEmailConfirmation, 10) === 1 && parseInt(userData['email:confirmed'], 10) !== 1) {
-					return callback(null, false, '[[error:email-not-confirmed-chat]]');
+					return next(new Error('[[error:email-not-confirmed-chat]]'));
 				}
 
-				next(null, true);
+				next();
+			}
+		], callback);
+	};
+
+	Messaging.hasPrivateChat = function(uid, withUid, callback) {
+		async.waterfall([
+			function (next) {
+				async.parallel({
+					myRooms: async.apply(db.getSortedSetRevRange, 'uid:' + uid + ':chat:rooms', 0, -1),
+					theirRooms: async.apply(db.getSortedSetRevRange, 'uid:' + withUid + ':chat:rooms', 0, -1)
+				}, next);
+			},
+			function (results, next) {
+				var roomIds = results.myRooms.filter(function(roomId) {
+					return roomId && results.theirRooms.indexOf(roomId) !== -1;
+				});
+
+				if (!roomIds.length) {
+					return callback();
+				}
+
+				var index = 0;
+				var roomId = 0;
+				async.whilst(function() {
+					return index < roomIds.length && !roomId;
+				}, function(next) {
+					Messaging.getUserCountInRoom(roomIds[index], function(err, count) {
+						if (err) {
+							return next(err);
+						}
+						if (count === 2) {
+							roomId = roomIds[index];
+							next(null, roomId);
+						} else {
+							++ index;
+							next();
+						}
+					});
+				}, next);
 			}
 		], callback);
 	};

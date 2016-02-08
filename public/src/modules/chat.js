@@ -55,7 +55,7 @@ define('chat', ['components', 'taskbar', 'string', 'sounds', 'forum/chats', 'tra
 					});
 					roomData.silent = true;
 					module.createModal(roomData, function(modal) {
-						module.toggleNew(modal.attr('UUID'), true, true);
+						module.toggleNew(modal.attr('UUID'), !isSelf, true);
 						if (!isSelf) {
 							app.alternatingTitle('[[modules:chat.user_has_messaged_you, ' + username + ']]');
 							sounds.play('chat-incoming');
@@ -92,11 +92,11 @@ define('chat', ['components', 'taskbar', 'string', 'sounds', 'forum/chats', 'tra
 		socket.on('event:chats.roomRename', function(data) {
 			module.getModal(data.roomId).find('[component="chat/room/name"]').val(data.newName);
 		});
+
+		Chats.onChatEdit();
 	};
 
 	module.loadChatsDropdown = function(chatsListEl) {
-
-
 		socket.emit('modules.chats.getRecentChats', {after: 0}, function(err, data) {
 			if (err) {
 				return app.alertError(err.message);
@@ -348,7 +348,7 @@ define('chat', ['components', 'taskbar', 'string', 'sounds', 'forum/chats', 'tra
 		socket.emit('modules.chats.markRead', chatModal.attr('roomId'));
 
 		var env = utils.findBootstrapEnvironment();
-		if (env === 'xs' || env === 'sm') {
+		if (env === 'xs') {
 			module.enableMobileBehaviour(chatModal);
 		}
 	};

@@ -161,7 +161,7 @@ $(document).ready(function() {
 	ajaxify.end = function(url, tpl_url) {
 		function done() {
 			if (--count === 0) {
-				$(window).trigger('action:ajaxify.end', {url: url});
+				$(window).trigger('action:ajaxify.end', {url: url, tpl_url: tpl_url, title: ajaxify.data.title});
 			}
 		}
 		var count = 2;
@@ -195,7 +195,17 @@ $(document).ready(function() {
 	ajaxify.loadScript = function(tpl_url, callback) {
 		var location = !app.inAdmin ? 'forum/' : '';
 
-		require([location + tpl_url], function(script) {
+		if (tpl_url.startsWith('admin')) {
+			location = '';
+		}
+		var data = {
+			tpl_url: tpl_url,
+			scripts: [location + tpl_url]
+		};
+
+		$(window).trigger('action:script.load', data);
+
+		require(data.scripts, function(script) {
 			if (script && script.init) {
 				script.init();
 			}

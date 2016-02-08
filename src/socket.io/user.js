@@ -1,27 +1,25 @@
 'use strict';
 
-var	async = require('async'),
+var	async = require('async');
 
 
-	user = require('../user'),
-	topics = require('../topics'),
-	notifications = require('../notifications'),
-	messaging = require('../messaging'),
-	plugins = require('../plugins'),
-	utils = require('../../public/src/utils'),
-	websockets = require('./index'),
-	meta = require('../meta'),
-	events = require('../events'),
-	emailer = require('../emailer'),
-	db = require('../database'),
+var user = require('../user');
+var topics = require('../topics');
+var notifications = require('../notifications');
+var messaging = require('../messaging');
+var plugins = require('../plugins');
+var meta = require('../meta');
+var events = require('../events');
+var emailer = require('../emailer');
+var db = require('../database');
 
-	SocketUser = {};
-
+var SocketUser = {};
 
 require('./user/profile')(SocketUser);
 require('./user/search')(SocketUser);
 require('./user/status')(SocketUser);
 require('./user/picture')(SocketUser);
+require('./user/ban')(SocketUser);
 
 SocketUser.exists = function(socket, data, callback) {
 	if (data && data.username) {
@@ -33,20 +31,29 @@ SocketUser.deleteAccount = function(socket, data, callback) {
 	if (!socket.uid) {
 		return;
 	}
-	user.isAdministrator(socket.uid, function(err, isAdmin) {
-		if (err || isAdmin) {
-			return callback(err || new Error('[[error:cant-delete-admin]]'));
-		}
 
-		socket.broadcast.emit('event:user_status_change', {uid: socket.uid, status: 'offline'});
-		user.deleteAccount(socket.uid, function(err) {
-			if (err) {
-				return callback(err);
+	async.waterfall([
+		function (next) {
+			user.isAdministrator(socket.uid, next);
+		},
+		function (isAdmin, next) {
+			if (isAdmin) {
+				return next(new Error('[[error:cant-delete-admin]]'));
 			}
-			websockets.in('uid_' + socket.uid).emit('event:logout');
-			callback();
-		});
-	});
+			user.deleteAccount(socket.uid, next);
+		},
+		function (next) {
+			socket.broadcast.emit('event:user_status_change', {uid: socket.uid, status: 'offline'});
+
+			events.log({
+				type: 'user-delete',
+				uid: socket.uid,
+				targetUid: socket.uid,
+				ip: socket.ip
+			});
+			next();
+		}
+	], callback);
 };
 
 SocketUser.emailExists = function(socket, data, callback) {
@@ -130,13 +137,13 @@ SocketUser.follow = function(socket, data, callback) {
 	}
 	var userData;
 	async.waterfall([
-		function(next) {
+		function (next) {
 			toggleFollow('follow', socket.uid, data.uid, next);
 		},
-		function(next) {
+		function (next) {
 			user.getUserFields(socket.uid, ['username', 'userslug'], next);
 		},
-		function(_userData, next) {
+		function (_userData, next) {
 			userData = _userData;
 			notifications.create({
 				bodyShort: '[[notifications:user_started_following_you, ' + userData.username + ']]',
@@ -146,7 +153,10 @@ SocketUser.follow = function(socket, data, callback) {
 				mergeId: 'notifications:user_started_following_you'
 			}, next);
 		},
-		function(notification, next) {
+		function (notification, next) {
+			if (!notification) {
+				return next();
+			}
 			notification.user = userData;
 			notifications.push(notification, [data.uid], next);
 		}
@@ -236,12 +246,15 @@ SocketUser.loadMore = function(socket, data, callback) {
 		return callback(new Error('[[error:no-privileges]]'));
 	}
 
-	var start = parseInt(data.after, 10),
-		stop = start + 19;
+	var start = parseInt(data.after, 10);
+	var stop = start + 19;
 
 	async.parallel({
 		isAdmin: function(next) {
 			user.isAdministrator(socket.uid, next);
+		},
+		isGlobalMod: function(next) {
+			user.isGlobalModerator(socket.uid, next);
 		},
 		users: function(next) {
 			user.getUsersFromSet(data.set, socket.uid, start, stop, next);
@@ -251,6 +264,9 @@ SocketUser.loadMore = function(socket, data, callback) {
 			return callback(err);
 		}
 
+		if (data.set === 'users:banned' && !results.isAdmin && !results.isGlobalMod) {
+			return callback(new Error('[[error:no-privileges]]'));
+		}
 
 		if (!results.isAdmin && data.set === 'users:online') {
 			results.users = results.users.filter(function(user) {
@@ -271,7 +287,7 @@ SocketUser.invite = function(socket, email, callback) {
 		return callback(new Error('[[error:invalid-data]]'));
 	}
 
-	var registrationType = meta.config.registrationType
+	var registrationType = meta.config.registrationType;
 
 	if (registrationType !== 'invite-only' && registrationType !== 'admin-invite-only') {
 		return callback(new Error('[[error:forum-not-invite-only]]'));

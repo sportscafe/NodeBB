@@ -36,12 +36,12 @@ topicsController.get = function(req, res, callback) {
 					user.getSettings(req.uid, next);
 				},
 				topic: function(next) {
-					topics.getTopicFields(tid, ['slug', 'postcount', 'deleted'], next);
+					topics.getTopicData(tid, next);
 				}
 			}, next);
 		},
 		function (results, next) {
-			if (!results.topic.slug) {
+			if (!results.topic) {
 				return callback();
 			}
 
@@ -106,45 +106,38 @@ topicsController.get = function(req, res, callback) {
 				currentPage = Math.max(1, Math.ceil(index / settings.postsPerPage));
 			}
 
-			var start = (currentPage - 1) * settings.postsPerPage + postIndex,
-				stop = start + settings.postsPerPage - 1;
+			var start = (currentPage - 1) * settings.postsPerPage + postIndex;
+			var stop = start + settings.postsPerPage - 1;
 
-			topics.getTopicWithPosts(tid, set, req.uid, start, stop, reverse, function (err, topicData) {
-				if (err && err.message === '[[error:no-topic]]' && !topicData) {
-					return callback();
-				}
-
-				if (err && !topicData) {
-					return next(err);
-				}
-
-				if (topicData.category.disabled) {
-					return callback();
-				}
-
-				topics.modifyByPrivilege(topicData.posts, results.privileges);
-
-				plugins.fireHook('filter:controllers.topic.get', topicData, next);
-			});
+			topics.getTopicWithPosts(results.topic, set, req.uid, start, stop, reverse, next);
 		},
 		function (topicData, next) {
+			if (topicData.category.disabled) {
+				return callback();
+			}
+
+			topics.modifyPostsByPrivilege(topicData.posts, userPrivileges);
+
+			plugins.fireHook('filter:controllers.topic.get', {topicData: topicData, uid: req.uid}, next);
+		},
+		function (data, next) {
 
 			var breadcrumbs = [
 				{
-					text: topicData.category.name,
-					url: nconf.get('relative_path') + '/category/' + topicData.category.slug
+					text: data.topicData.category.name,
+					url: nconf.get('relative_path') + '/category/' + data.topicData.category.slug
 				},
 				{
-					text: topicData.title
+					text: data.topicData.title
 				}
 			];
 
-			helpers.buildCategoryBreadcrumbs(topicData.category.parentCid, function(err, crumbs) {
+			helpers.buildCategoryBreadcrumbs(data.topicData.category.parentCid, function(err, crumbs) {
 				if (err) {
 					return next(err);
 				}
-				topicData.breadcrumbs = crumbs.concat(breadcrumbs);
-				next(null, topicData);
+				data.topicData.breadcrumbs = crumbs.concat(breadcrumbs);
+				next(null, data.topicData);
 			});
 		},
 		function (topicData, next) {

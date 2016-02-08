@@ -73,6 +73,9 @@ module.exports = function(SocketPosts) {
 					admins: function(next) {
 						groups.getMembers('administrators', 0, -1, next);
 					},
+					globalMods: function (next) {
+						groups.getMembers('Global Moderators', 0, -1, next);
+					},
 					moderators: function(next) {
 						groups.getMembers('cid:' + post.topic.cid + ':privileges:mods', 0, -1, next);
 					}
@@ -93,9 +96,71 @@ module.exports = function(SocketPosts) {
 					}
 
 					plugins.fireHook('action:post.flag', {post: post, flaggingUser: flaggingUser});
-					notifications.push(notification, results.admins.concat(results.moderators), next);
+					notifications.push(notification, results.admins.concat(results.moderators).concat(results.globalMods), next);
 				});
 			}
+		], callback);
+	};
+
+	SocketPosts.dismissFlag = function(socket, pid, callback) {
+		if (!pid || !socket.uid) {
+			return callback('[[error:invalid-data]]');
+		}
+		async.waterfall([
+			function (next) {
+				user.isAdminOrGlobalMod(socket.uid, next);
+			},
+			function (isAdminOrGlobalModerator, next) {
+				if (!isAdminOrGlobalModerator) {
+					return next(new Error('[[no-privileges]]'));
+				}
+				posts.dismissFlag(pid, next);
+			}
+		], callback);
+	};
+
+	SocketPosts.dismissAllFlags = function(socket, data, callback) {
+		async.waterfall([
+			function (next) {
+				user.isAdminOrGlobalMod(socket.uid, next);
+			},
+			function (isAdminOrGlobalModerator, next) {
+				if (!isAdminOrGlobalModerator) {
+					return next(new Error('[[no-privileges]]'));
+				}
+				posts.dismissAllFlags(next);
+			}
+		], callback);
+	};
+
+	SocketPosts.getMoreFlags = function(socket, data, callback) {
+		if (!data || !parseInt(data.after, 10)) {
+			return callback('[[error:invalid-data]]');
+		}
+		var sortBy = data.sortBy || 'count';
+		var byUsername = data.byUsername ||  '';
+		var start = parseInt(data.after, 10);
+		var stop = start + 19;
+
+		async.waterfall([
+			function (next) {
+				user.isAdminOrGlobalMod(socket.uid, next);
+			},
+			function (isAdminOrGlobalModerator, next) {
+				if (!isAdminOrGlobalModerator) {
+					return next(new Error('[[no-privileges]]'));
+				}
+
+				if (byUsername) {
+					posts.getUserFlags(byUsername, sortBy, socket.uid, start, stop, next);
+				} else {
+					var set = sortBy === 'count' ? 'posts:flags:count' : 'posts:flagged';
+					posts.getFlags(set, socket.uid, start, stop, next);
+				}
+			},
+			function (posts, next) {
+				next(null, {posts: posts, next: stop + 1});
+			},
 		], callback);
 	};
 };

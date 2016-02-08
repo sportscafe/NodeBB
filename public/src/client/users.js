@@ -1,6 +1,6 @@
 'use strict';
 
-/* globals define, socket, app, templates, bootbox */
+/* globals define, socket, app, templates, bootbox, ajaxify */
 
 define('forum/users', ['translator'], function(translator) {
 	var	Users = {};
@@ -31,20 +31,12 @@ define('forum/users', ['translator'], function(translator) {
 	};
 
 	function loadMoreUsers() {
-		var set = '';
-		var activeSection = getActiveSection();
-		if (activeSection === 'sort-posts') {
-			set = 'users:postcount';
-		} else if (activeSection === 'sort-reputation') {
-			set = 'users:reputation';
-		} else if (activeSection === 'online') {
-			set = 'users:online';
-		} else if (activeSection === 'users') {
-			set = 'users:joindate';
+		if ($('#search-user').val()) {
+			return;
 		}
 
-		if (set) {
-			startLoading(set, $('#users-container').children('.registered-user').length);
+		if (ajaxify.data.setName) {
+			startLoading(ajaxify.data.setName, $('#users-container').children('.registered-user').length);
 		}
 	}
 
@@ -114,8 +106,8 @@ define('forum/users', ['translator'], function(translator) {
 			query: username,
 			page: page,
 			searchBy: 'username',
-			sortBy: $('.search select').val(),
-			onlineOnly: $('.search .online-only').is(':checked')
+			sortBy: $('.search select').val() || getSortBy(),
+			onlineOnly: $('.search .online-only').is(':checked') || (getActiveSection() === 'online')
 		}, function(err, data) {
 			if (err) {
 				return app.alertError(err.message);
@@ -125,12 +117,23 @@ define('forum/users', ['translator'], function(translator) {
 		});
 	}
 
-	function loadPage(page) {
-		socket.emit('user.loadSearchPage', {page: page, onlineOnly: $('.search .online-only').is(':checked')}, function(err, data) {
-			if (err) {
-				return app.alertError(err.message);
-			}
+	function getSortBy() {
+		var sortBy;
+		var activeSection = getActiveSection();
+		if (activeSection === 'sort-posts') {
+			sortBy = 'postcount';
+		} else if (activeSection === 'sort-reputation') {
+			sortBy = 'reputation';
+		} else if (activeSection === 'users') {
+			sortBy = 'joindate';
+		}
+		return sortBy;
+	}
 
+	function loadPage(page) {
+		var section = getActiveSection();
+		section = section !== 'users' ? section : '';
+		$.get('/api/users/' + section + '?page=' + page, function(data) {
 			renderSearchResults(data);
 		});
 	}
@@ -143,10 +146,11 @@ define('forum/users', ['translator'], function(translator) {
 
 		templates.parse('users', 'users', data, function(html) {
 			translator.translate(html, function(translated) {
+				translated = $(translated);
 				$('#users-container').html(translated);
+				translated.find('span.timeago').timeago();
 			});
 		});
-
 	}
 
 	function onUserStatusChange(data) {

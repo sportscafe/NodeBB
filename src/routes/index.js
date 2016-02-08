@@ -2,6 +2,7 @@
 
 var nconf = require('nconf'),
 	path = require('path'),
+	async = require('async'),
 	winston = require('winston'),
 	controllers = require('../controllers'),
 	plugins = require('../plugins'),
@@ -27,12 +28,16 @@ function mainRoutes(app, middleware, controllers) {
 
 	setupPageRoute(app, '/login', middleware, loginRegisterMiddleware, controllers.login);
 	setupPageRoute(app, '/register', middleware, loginRegisterMiddleware, controllers.register);
-	setupPageRoute(app, '/compose', middleware, [middleware.authenticate], controllers.compose);
+	setupPageRoute(app, '/compose', middleware, [], controllers.compose);
 	setupPageRoute(app, '/confirm/:code', middleware, [], controllers.confirmEmail);
 	setupPageRoute(app, '/outgoing', middleware, [], controllers.outgoing);
 	setupPageRoute(app, '/search/:term?', middleware, [], controllers.search.search);
 	setupPageRoute(app, '/reset/:code?', middleware, [], controllers.reset);
 	setupPageRoute(app, '/tos', middleware, [], controllers.termsOfUse);
+}
+
+function postRoutes(app, middleware, controllers) {
+	setupPageRoute(app, '/posts/flags', middleware, [], controllers.posts.flagged);
 }
 
 function topicRoutes(app, middleware, controllers) {
@@ -62,6 +67,7 @@ function userRoutes(app, middleware, controllers) {
 	setupPageRoute(app, '/users/online', middleware, middlewares, controllers.users.getOnlineUsers);
 	setupPageRoute(app, '/users/sort-posts', middleware, middlewares, controllers.users.getUsersSortedByPosts);
 	setupPageRoute(app, '/users/sort-reputation', middleware, middlewares, controllers.users.getUsersSortedByReputation);
+	setupPageRoute(app, '/users/banned', middleware, middlewares, controllers.users.getBannedUsers);
 }
 
 
@@ -105,6 +111,7 @@ module.exports = function(app, middleware) {
 
 	mainRoutes(router, middleware, controllers);
 	topicRoutes(router, middleware, controllers);
+	postRoutes(router, middleware, controllers);
 	tagRoutes(router, middleware, controllers);
 	categoryRoutes(router, middleware, controllers);
 	accountRoutes(router, middleware, controllers);
@@ -130,8 +137,10 @@ module.exports = function(app, middleware) {
 
 
 	// Add plugin routes
-	plugins.reloadRoutes();
-	authRoutes.reloadRoutes();
+	async.series([
+		async.apply(plugins.reloadRoutes),
+		async.apply(authRoutes.reloadRoutes)
+	]);
 };
 
 function handle404(app, middleware) {

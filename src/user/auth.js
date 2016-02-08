@@ -71,14 +71,15 @@ module.exports = function(User) {
 
 		async.waterfall([
 			async.apply(db.getSortedSetRange, 'uid:' + uid + ':sessions', 0, -1),
-			function(sids, next) {
+			function (sids, next) {
 				_sids = sids;
 				async.map(sids, db.sessionStore.get.bind(db.sessionStore), next);
 			},
-			function(sessions, next) {
-				sessions = sessions.map(function(sessionObj, idx) {
-					sessionObj.meta.current = curSessionId === _sids[idx];
-					return sessionObj;
+			function (sessions, next) {
+				sessions.forEach(function(sessionObj, idx) {
+					if (sessionObj && sessionObj.meta) {
+						sessionObj.meta.current = curSessionId === _sids[idx];
+					}
 				});
 
 				// Revoke any sessions that have expired, return filtered list
@@ -86,16 +87,16 @@ module.exports = function(User) {
 					expired;
 
 				sessions = sessions.filter(function(sessionObj, idx) {
-					expired = !sessionObj || !sessionObj.hasOwnProperty('passport')
-						|| !sessionObj.passport.hasOwnProperty('user')
-						|| parseInt(sessionObj.passport.user, 10) !== parseInt(uid, 10);
+					expired = !sessionObj || !sessionObj.hasOwnProperty('passport') ||
+						!sessionObj.passport.hasOwnProperty('user')	||
+						parseInt(sessionObj.passport.user, 10) !== parseInt(uid, 10);
 
 					if (expired) {
 						expiredSids.push(_sids[idx]);
 					}
 
 					return !expired;
-				}, [])
+				});
 
 				async.each(expiredSids, function(sid, next) {
 					User.auth.revokeSession(sid, uid, next);
@@ -103,7 +104,7 @@ module.exports = function(User) {
 					next(null, sessions);
 				});
 			}
-		], function(err, sessions) {
+		], function (err, sessions) {
 			callback(err, sessions ? sessions.map(function(sessObj) {
 				sessObj.meta.datetimeISO = new Date(sessObj.meta.datetime).toISOString();
 				return sessObj.meta;

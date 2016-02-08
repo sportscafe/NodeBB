@@ -26,7 +26,5 @@
         </div>
     </li>
 <!-- END categories -->
-
 <li class="children-placeholder"></li>
-
 </ul>

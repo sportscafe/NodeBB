@@ -116,7 +116,7 @@ var	async = require('async'),
 						user.administrator = results.isAdmin[index];
 						user.banned = parseInt(user.banned, 10) === 1;
 						user['email:confirmed'] = parseInt(user['email:confirmed'], 10) === 1;
-						user.lastonlineISO = utils.toISOString(user.lastonline);
+						user.lastonlineISO = utils.toISOString(user.lastonline) || user.joindateISO;
 					}
 				});
 				plugins.fireHook('filter:userlist.get', {users: results.userData, uid: uid}, next);
@@ -228,6 +228,19 @@ var	async = require('async'),
 
 	User.isAdministrator = function(uid, callback) {
 		privileges.users.isAdministrator(uid, callback);
+	};
+
+	User.isGlobalModerator = function(uid, callback) {
+		privileges.users.isGlobalModerator(uid, callback);
+	};
+
+	User.isAdminOrGlobalMod = function(uid, callback) {
+		async.parallel({
+			isAdmin: async.apply(User.isAdministrator, uid),
+			isGlobalMod: async.apply(User.isGlobalModerator, uid)
+		}, function(err, results) {
+			callback(err, results ? (results.isAdmin || results.isGlobalMod) : false);
+		});
 	};
 
 	User.isAdminOrSelf = function(callerUid, uid, callback) {

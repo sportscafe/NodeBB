@@ -30,7 +30,9 @@ var fs = require('fs'),
 	Plugins.cssFiles = [];
 	Plugins.lessFiles = [];
 	Plugins.clientScripts = [];
+	Plugins.acpScripts = [];
 	Plugins.customLanguages = [];
+	Plugins.customLanguageFallbacks = {};
 	Plugins.libraryPaths = [];
 	Plugins.versionWarning = [];
 
@@ -80,6 +82,7 @@ var fs = require('fs'),
 		Plugins.cssFiles.length = 0;
 		Plugins.lessFiles.length = 0;
 		Plugins.clientScripts.length = 0;
+		Plugins.acpScripts.length = 0;
 		Plugins.libraryPaths.length = 0;
 
 		Plugins.registerHook('core', {
@@ -149,16 +152,44 @@ var fs = require('fs'),
 	};
 
 	Plugins.getTemplates = function(callback) {
-		var templates = {};
+		var templates = {},
+			tplName;
 
-		Plugins.showInstalled(function(err, plugins) {
-			async.each(plugins, function(plugin, next) {
-				if (plugin.templates && plugin.id && plugin.active) {
-					var templatesPath = path.join(__dirname, '../node_modules', plugin.id, plugin.templates);
+		async.waterfall([
+			async.apply(db.getSortedSetRange, 'plugins:active', 0, -1),
+			function(plugins, next) {
+				var pluginBasePath = path.join(__dirname, '../node_modules');
+				var paths = plugins.map(function(plugin) {
+					return path.join(pluginBasePath, plugin);
+				});
+
+				// Filter out plugins with invalid paths
+				async.filter(paths, file.exists, function(paths) {
+					next(null, paths);
+				});
+			},
+			function(paths, next) {
+				async.map(paths, Plugins.loadPluginInfo, next);
+			}
+		], function(err, plugins) {
+			if (err) {
+				return callback(err);
+			}
+
+			async.eachSeries(plugins, function(plugin, next) {
+				if (plugin.templates || plugin.id.startsWith('nodebb-theme-')) {
+					winston.verbose('[plugins] Loading templates (' + plugin.id + ')');
+					var templatesPath = path.join(__dirname, '../node_modules', plugin.id, plugin.templates || 'templates');
 					utils.walk(templatesPath, function(err, pluginTemplates) {
 						if (pluginTemplates) {
 							pluginTemplates.forEach(function(pluginTemplate) {
-								templates["/" + pluginTemplate.replace(templatesPath, '').substring(1)] = pluginTemplate;
+								tplName = "/" + pluginTemplate.replace(templatesPath, '').substring(1);
+
+								if (templates.hasOwnProperty(tplName)) {
+									winston.verbose('[plugins] ' + tplName + ' replaced by ' + plugin.id);
+								}
+
+								templates[tplName] = pluginTemplate;
 							});
 						} else {
 							winston.warn('[plugins/' + plugin.id + '] A templates directory was defined for this plugin, but was not found.');
@@ -393,12 +424,10 @@ var fs = require('fs'),
 			translator.addTranslation(language, filename, lang.file);
 		});
 
-		var fallbackPath;
 		for(var resource in Plugins.customLanguageFallbacks) {
-			fallbackPath = Plugins.customLanguageFallbacks[resource];
 			params.router.get('/language/:lang/' + resource + '.json', function(req, res, next) {
-				winston.verbose('[translator] No resource file found for ' + req.params.lang + '/' + resource + ', using provided fallback language file');
-				res.sendFile(fallbackPath);
+				winston.verbose('[translator] No resource file found for ' + req.params.lang + '/' + path.basename(req.path, '.json') + ', using provided fallback language file');
+				res.sendFile(Plugins.customLanguageFallbacks[path.basename(req.path, '.json')]);
 			});
 		}
 

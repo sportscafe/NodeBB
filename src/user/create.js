@@ -31,8 +31,9 @@ module.exports = function(User) {
 				'userslug': data.userslug,
 				'email': data.email,
 				'joindate': timestamp,
+				'lastonline': timestamp,
 				'picture': '',
-				'fullname': data.fullname,
+				'fullname': data.fullname || '',
 				'location': '',
 				'birthday': '',
 				'website': '',
@@ -89,13 +90,16 @@ module.exports = function(User) {
 								db.sortedSetAdd('userslug:uid', userData.uid, userData.userslug, next);
 							},
 							function(next) {
-								db.sortedSetAdd('users:joindate', timestamp, userData.uid, next);
+								db.sortedSetsAdd(['users:joindate', 'users:online', 'users:notvalidated'], timestamp, userData.uid, next);
 							},
 							function(next) {
 								db.sortedSetsAdd(['users:postcount', 'users:reputation'], 0, userData.uid, next);
 							},
 							function(next) {
 								groups.join('registered-users', userData.uid, next);
+							},
+							function(next) {
+								User.notifications.sendWelcomeNotification(userData.uid, next);
 							},
 							function(next) {
 								if (userData.email) {

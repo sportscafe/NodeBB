@@ -2,14 +2,24 @@
 	"use strict";
 	/* globals RELATIVE_PATH, config, define */
 
+	var S = null;
+	var stringDefer = null;
+
 	// export the class if we are in a Node-like system.
 	if (typeof module === 'object' && module.exports === translator) {
 		exports = module.exports = translator;
+		S = require('string');
+	} else {
+		stringDefer = $.Deferred();
+		require(['string'], function(stringLib) {
+			S = stringLib;
+			stringDefer.resolve(S);
+		});
 	}
 
 	var	languages = {},
 		regexes = {
-			match: /\[\[\w+:[^\[]*?\]\]/g,
+			match: /\[\[\w+:[\w\.]+((?!\[\[).)*?\]\]/g,	// see tests/translator.js for an explanation re: this monster
 			split: /[,][\s]*/,
 			replace: /\]+$/
 		};
@@ -138,7 +148,14 @@
 			return callback(text);
 		}
 
-		translateKeys(keys, text, language, callback);
+		translateKeys(keys, text, language, function(translated) {
+			keys = translated.match(regexes.match);
+			if (!keys) {
+				callback(translated);
+			} else {
+				translateKeys(keys, translated, language, callback);
+			}
+		});
 	};
 
 	function translateKeys(keys, text, language, callback) {
@@ -147,18 +164,19 @@
 		if (!count) {
 			return callback(text);
 		}
+		
+		if (S === null) { // browser environment and S not yet initialized
+			// we need to wait for async require call
+			stringDefer.then(function () { translateKeys(keys, text, language, callback); });
+			return;
+		}
 
 		var data = {text: text};
 		keys.forEach(function(key) {
 			translateKey(key, data, language, function(translated) {
 				--count;
 				if (count <= 0) {
-					keys = translated.text.match(regexes.match);
-					if (!keys) {
-						callback(translated.text);
-					} else {
-						translateKeys(keys, translated.text, language, callback);
-					}
+					callback(translated.text);
 				}
 			});
 		});
@@ -185,8 +203,9 @@
 
 	function insertLanguage(text, key, value, variables) {
 		if (value) {
+			var variable;
 			for (var i = 1, ii = variables.length; i < ii; i++) {
-				var variable = variables[i].replace(']]', '');
+				variable = S(variables[i]).chompRight(']]').collapseWhitespace().escapeHTML().s;
 				value = value.replace('%' + i, variable);
 			}
 
