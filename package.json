@@ -88,7 +88,7 @@
     "nodebb-plugin-amazons3": "0.2.4",
     "nodebb-plugin-rss": "git://github.com/sportscafe/nodebb-plugin-rss#master",
     "nodebb-plugin-blog-comments": "0.5.0",
-    "nodebb-plugin-shoutbox": "0.3.1"
+    "nodebb-plugin-shoutbox": "git://github.com/sportscafe/nodebb-plugin-shoutbox#master"
   },
   "devDependencies": {
     "mocha": "~1.13.0",
