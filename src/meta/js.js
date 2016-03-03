@@ -4,7 +4,6 @@ var winston = require('winston'),
 	fork = require('child_process').fork,
 	path = require('path'),
 	async = require('async'),
-	_ = require('underscore'),
 	nconf = require('nconf'),
 	fs = require('fs'),
 	file = require('../file'),
@@ -115,7 +114,8 @@ module.exports = function(Meta) {
 					process.send({
 						action: 'js-propagate',
 						cache: Meta.js.target[target].cache,
-						map: Meta.js.target[target].map
+						map: Meta.js.target[target].map,
+						target: target
 					});
 				}
 
