@@ -89,8 +89,9 @@
     "nodebb-plugin-rss": "git://github.com/sportscafe/nodebb-plugin-rss#master",
     "nodebb-plugin-blog-comments": "0.5.0",
     "nodebb-plugin-shoutbox": "git://github.com/sportscafe/nodebb-plugin-shoutbox#master",
-    "nodebb-theme-mega-knights-persona": "4.0.46",
-    "nodebb-plugin-ns-awards": "2.1.0"
+    "nodebb-plugin-ns-awards": "2.1.0",
+    "nodebb-plugin-cash": "0.2.5",
+    "nodebb-plugin-recent-cards": "0.0.10"
   },
   "devDependencies": {
     "mocha": "~1.13.0",
