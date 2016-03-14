@@ -85,7 +85,7 @@
     "nodebb-plugin-sso-google": "2.0.0",
     "nodebb-plugin-sso-facebook": "2.0.0",
     "nodebb-plugin-sso-twitter": "2.0.0",
-    "nodebb-plugin-amazons3": "0.2.4",
+    "nodebb-plugin-amazons3": "git://github.com/sportscafe/nodebb-plugin-amazons3#master",
     "nodebb-plugin-rss": "git://github.com/sportscafe/nodebb-plugin-rss#master",
     "nodebb-plugin-blog-comments": "0.5.0",
     "nodebb-plugin-shoutbox": "git://github.com/sportscafe/nodebb-plugin-shoutbox#master",
